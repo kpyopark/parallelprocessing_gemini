@@ -8,6 +8,15 @@ import pandas as pd
 from typing import List, Dict, Any
 import logging
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+PROJECT_ID = os.getenv("PROJECT_ID")
+LOCATION = os.getenv("LOCATION")
+DATASET_ID = os.getenv("DATASET_ID")
+
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +48,7 @@ class GeminiParallelProcessor:
         
         # Vertex AI 초기화
         vertexai.init(project=project_id, location=location)
-        self.model = GenerativeModel("gemini-flash-1.5-001")
+        self.model = GenerativeModel("gemini-1.5-flash-002")
         self.generation_config = {
             "max_output_tokens": 8192,
             "temperature": 0.3,
@@ -215,18 +224,15 @@ class GeminiParallelProcessor:
 # 사용 예시
 if __name__ == "__main__":
     processor = GeminiParallelProcessor(
-        project_id="your-project-id",
-        location="us-central1",
+        project_id=PROJECT_ID,
+        location=LOCATION,
         input_query="""
         SELECT 
-            id,
-            input_text
-        FROM `your-project.your-dataset.your-input-table`
-        WHERE processed_flag = False
-        ORDER BY id
+        1 as id,
+            'you should respond the users request. users request is "How old are you?". output format should be JSON.' as input_text
         """,
-        output_table="your-dataset.processing_results",
-        result_table="your-dataset.batch_status",
+        output_table=f"{DATASET_ID}.processing_results",
+        result_table=f"{DATASET_ID}.batch_status",
         batch_size=100000,
         process_size=10000,
         max_workers=10
