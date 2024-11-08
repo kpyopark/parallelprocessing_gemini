@@ -1,12 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from google.cloud import bigquery
-from vertexai.language_models import TextGenerationModel
+from vertexai.generative_models import GenerativeModel, Part, SafetySetting
 import vertexai
 import time
 from datetime import datetime
 import pandas as pd
 from typing import List, Dict, Any
 import logging
+import json
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -38,8 +39,30 @@ class GeminiParallelProcessor:
         
         # Vertex AI 초기화
         vertexai.init(project=project_id, location=location)
-        self.model = TextGenerationModel.from_pretrained("gemini-pro")
-        
+        self.model = GenerativeModel("gemini-flash-1.5-001")
+        self.generation_config = {
+            "max_output_tokens": 8192,
+            "temperature": 0.3,
+            "top_p": 0.95,
+        }
+        self.safety_settings = [
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                threshold=SafetySetting.HarmBlockThreshold.OFF
+            ),
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold=SafetySetting.HarmBlockThreshold.OFF
+            ),
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold=SafetySetting.HarmBlockThreshold.OFF
+            ),
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold=SafetySetting.HarmBlockThreshold.OFF
+            ),
+        ]
         # 결과 테이블 스키마 생성
         self.create_result_table()
 
@@ -61,21 +84,32 @@ class GeminiParallelProcessor:
         except Exception as e:
             logger.info(f"Result table already exists or error: {str(e)}")
 
+    def parse_gemini_response(self, json_str):
+        start_index = json_str.find('```json') + 7
+        end_index = json_str.find('```', start_index)
+        json_str = json_str[start_index:end_index].strip()
+        return json.loads(json_str)
+
     def process_single_request(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """단일 Gemini API 요청 처리"""
         try:
             # 여기에 실제 Gemini API 호출 로직 구현
             # 예시: 입력 텍스트를 기반으로 응답 생성
-            response = self.model.predict(
-                row['input_text'],
-                temperature=0.7,
-                max_output_tokens=1024
+            prompts = []
+            prompts.append(row['input_text'])
+            response = self.model.generate_content(
+                prompts,
+                generation_config=self.generation_config,
+                safety_settings=self.safety_settings,
+                stream=False,
             )
-            
+            # 만약 여기서 Json Output이 나오면, 아래와 같이 수정하세요. 
+            # response_text = self.parse_gemini_response(response.text)
+            response_text = response.text        
             return {
                 'id': row['id'],
                 'input_text': row['input_text'],
-                'output_text': response.text,
+                'output_text': response_text,
                 'status': 'success',
                 'error': None,
                 'processed_at': datetime.now()
