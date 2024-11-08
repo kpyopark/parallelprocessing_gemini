@@ -1,0 +1,10 @@
+google-cloud-bigquery>=3.11.4
+vertexai>=0.0.1
+google-cloud-aiplatform>=1.36.4
+
+# 데이터 처리 관련 패키지
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 기타 유틸리티 패키지
+python-dotenv>=1.0.0
